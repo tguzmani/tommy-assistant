@@ -6,10 +6,12 @@ import { TelegramService } from './telegram.service';
 import { TelegramAuthGuard } from './guards/telegram-auth.guard';
 import { TelegramBotInit } from './telegram-bot.init';
 import { TelegramBaseHandler } from './telegram-base.handler';
+import { SliceModule } from '../slice/slice.module';
 import * as https from 'https';
 
 @Module({
   imports: [
+    SliceModule,
     TelegrafModule.forRootAsync({
       useFactory: () => {
         const logger = new Logger('TelegramModule');

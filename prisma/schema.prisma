@@ -6,3 +6,122 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model OAuthToken {
+  id           Int      @id @default(autoincrement())
+  provider     String   @db.VarChar(50)
+  accessToken  String   @map("access_token") @db.Text
+  refreshToken String?  @map("refresh_token") @db.Text
+  expiresAt    DateTime @map("expires_at")
+  scope        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider])
+  @@map("oauth_tokens")
+}
+
+model Slice {
+  id              String   @id @default(uuid())
+  slug            String   @unique
+  name            String
+  description     String?
+
+  // Sequence configuration
+  increaseType    String   // 'linear' | 'exponential' | 'sqrt' | 'logarithmic' | 'sigmoid'
+  increaseParams  Json?    // { multiplier?: number, base?: number, offset?: number, max?: number, k?: number, inflection?: number }
+
+  decreaseType    String
+  decreaseParams  Json?
+
+  // Current state
+  currentIndex    Int      @default(0)
+  currentValue    Int      @default(0)
+
+  // Temporal behavior (optional)
+  temporalType    String?  // 'manual' | 'scheduled' | 'continuous'
+  expectedTime    String?  // "09:00" for scheduled
+  gracePeriod     Int?     // minutes
+  penaltyInterval Int?     // minutes
+  penaltyAmount   Int?     // negative number
+  maxInterval     Int?     // for continuous (minutes)
+  resetDaily      Boolean? @default(false)
+
+  // Composite slices
+  isComposite     Boolean  @default(false)
+  components      SliceComponent[]
+
+  // Relations
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
+  updates         SliceUpdate[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model SliceComponent {
+  id              String   @id @default(uuid())
+  sliceId         String
+  slice           Slice    @relation(fields: [sliceId], references: [id], onDelete: Cascade)
+
+  key             String   // 'teeth', 'shower', 'nails', etc.
+  name            String
+  weight          Int      // Percentage weight in composite (0-100)
+
+  currentValue    Int      @default(0)
+  maxValue        Int      @default(100)
+
+  // Decay configuration
+  decayType       String   // 'hourly' | 'daily' | 'weekly'
+  decayRate       Float    // How much to decay per period
+  lastChecked     DateTime?
+
+  updates         SliceComponentUpdate[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([sliceId, key])
+}
+
+model SliceUpdate {
+  id          String   @id @default(uuid())
+  sliceId     String
+  slice       Slice    @relation(fields: [sliceId], references: [id], onDelete: Cascade)
+
+  delta       Int      // +1, -5, -90, etc.
+  deltaType   String   @default("steps") // 'steps' | 'percentage' | 'absolute'
+
+  valueBefore Int
+  valueAfter  Int
+  indexBefore Int
+  indexAfter  Int
+
+  date        DateTime @default(now())
+  notes       String?
+  automatic   Boolean  @default(false)  // true if penalty from temporal behavior
+
+  createdAt   DateTime @default(now())
+}
+
+model SliceComponentUpdate {
+  id          String         @id @default(uuid())
+  componentId String
+  component   SliceComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  valueBefore Int
+  valueAfter  Int
+  date        DateTime       @default(now())
+  notes       String?
+
+  createdAt   DateTime @default(now())
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  slices      Slice[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
